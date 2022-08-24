@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -24,15 +22,6 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>com.spotify</groupId>
-        <artifactId>docker-maven-plugin</artifactId>
-        <version>0.4.10</version>
-        <configuration>
-          <skipDockerTag>true</skipDockerTag>
-          <skipDockerBuild>true</skipDockerBuild>
-        </configuration>
-      </plugin>
-      <plugin>
         <artifactId>maven-dependency-plugin</artifactId>
         <executions>
           <execution>
@@ -48,7 +37,7 @@
                   <version>${project.version}</version>
                 </artifactItem>
               </artifactItems>
-              <outputDirectory>../target/modules/${project.artifactId}/main</outputDirectory>
+              <outputDirectory>../../../modules/${project.artifactId}</outputDirectory>
               <stripClassifier>true</stripClassifier>
               <stripVersion>true</stripVersion>
             </configuration>
@@ -64,11 +53,12 @@
               <goal>copy-resources</goal>
             </goals>
             <configuration>
-              <outputDirectory>../target/modules/${project.artifactId}/main</outputDirectory>
+              <outputDirectory>../../../modules/${project.artifactId}</outputDirectory>
               <resources>
                 <resource>
                   <directory>${project.basedir}</directory>
                   <includes>
+                    <include>module-add.cli</include>
                     <include>module.xml</include>
                   </includes>
                 </resource>
@@ -77,14 +67,6 @@
           </execution>
         </executions>
       </plugin>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <configuration>
-                <source>10</source>
-                <target>10</target>
-            </configuration>
-        </plugin>
     </plugins>
   </build>
 </project>

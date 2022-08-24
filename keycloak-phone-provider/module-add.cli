@@ -1,0 +1,42 @@
+# main provider
+module add --name=keycloak-phone-provider --resources=keycloak-phone-provider/keycloak-phone-provider.jar --dependencies=org.keycloak.keycloak-core,org.keycloak.keycloak-common,org.hibernate,org.keycloak.keycloak-server-spi,org.keycloak.keycloak-server-spi-private,org.keycloak.keycloak-services,org.keycloak.keycloak-model-jpa,org.jboss.logging,javax.api,javax.ws.rs.api,javax.transaction.api,javax.persistence.api,org.jboss.resteasy.resteasy-jaxrs,org.apache.httpcomponents,org.apache.commons.lang,javax.xml.bind.api,com.squareup.okhttp3
+
+# dummy provider
+module add --name=keycloak-sms-provider-dummy --resources=keycloak-sms-provider-dummy/keycloak-sms-provider-dummy.jar --dependencies=org.keycloak.keycloak-core,org.keycloak.keycloak-server-spi,org.jboss.logging,keycloak-phone-provider
+
+
+embed-server --server-config=standalone-ha.xml --std-out=echo
+batch
+
+# main provider
+/subsystem=keycloak-server:list-add(name=providers,value=module:keycloak-phone-provider)
+/subsystem=keycloak-server/spi=phoneMessageService/:add
+/subsystem=keycloak-server/spi=phoneMessageService/provider=default/:add(enabled=true,properties={service => ${env.SMS_PROVIDER_SERVER:}, hourMaximum => ${env.SMS_HOUR_MAXIMUM:3}, tokenExpiresIn => ${env.SMS_TOKEN_EXPIRES:180}})
+
+/subsystem=keycloak-server/spi=messageSenderService/:add
+
+
+# dummy provider
+/subsystem=keycloak-server:list-add(name=providers,value=module:keycloak-sms-provider-dummy)
+
+
+run-batch
+stop-embedded-server
+
+embed-server --server-config=standalone.xml --std-out=echo
+batch
+
+# main provider
+/subsystem=keycloak-server:list-add(name=providers,value=module:keycloak-phone-provider)
+/subsystem=keycloak-server/spi=phoneMessageService/:add
+/subsystem=keycloak-server/spi=phoneMessageService/provider=default/:add(enabled=true,properties={service => ${env.SMS_PROVIDER_SERVER:}, hourMaximum => ${env.SMS_HOUR_MAXIMUM:3} , tokenExpiresIn => ${env.SMS_TOKEN_EXPIRES:180}})
+
+/subsystem=keycloak-server/spi=messageSenderService/:add
+
+
+# dummy provider
+/subsystem=keycloak-server:list-add(name=providers,value=module:keycloak-sms-provider-dummy)
+
+
+run-batch
+stop-embedded-server

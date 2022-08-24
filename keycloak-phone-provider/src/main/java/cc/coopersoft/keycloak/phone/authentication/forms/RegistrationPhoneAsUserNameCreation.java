@@ -1,14 +1,13 @@
 package cc.coopersoft.keycloak.phone.authentication.forms;
 
 import cc.coopersoft.keycloak.phone.utils.UserUtils;
+import org.apache.commons.lang.StringUtils;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.FormAction;
 import org.keycloak.authentication.FormActionFactory;
 import org.keycloak.authentication.FormContext;
 import org.keycloak.authentication.ValidationContext;
-import org.keycloak.authentication.forms.RegistrationPage;
-import org.keycloak.authentication.forms.RegistrationUserCreation;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventType;
@@ -18,25 +17,23 @@ import org.keycloak.models.utils.FormMessage;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.services.messages.Messages;
-import org.keycloak.services.resources.AttributeFormDataProcessor;
 import org.keycloak.services.validation.Validation;
-
+import org.keycloak.userprofile.UserProfile;
+import org.keycloak.userprofile.UserProfileContext;
+import org.keycloak.userprofile.UserProfileProvider;
 import javax.ws.rs.core.MultivaluedMap;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * replace  org.keycloak.authentication.forms.RegistrationUserCreation.java
+ * replace org.keycloak.authentication.forms.RegistrationUserCreation.java
  */
 public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, FormAction {
-
-    private static final Logger logger = Logger.getLogger(RegistrationPhoneAsUserNameCreation.class);
 
     public static final String PROVIDER_ID = "registration-phone-username-creation";
 
     private static AuthenticationExecutionModel.Requirement[] REQUIREMENT_CHOICES = {
             AuthenticationExecutionModel.Requirement.REQUIRED, AuthenticationExecutionModel.Requirement.DISABLED };
-
 
     @Override
     public String getDisplayType() {
@@ -58,7 +55,6 @@ public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, F
         return false;
     }
 
-
     @Override
     public AuthenticationExecutionModel.Requirement[] getRequirementChoices() {
         return REQUIREMENT_CHOICES;
@@ -68,8 +64,6 @@ public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, F
     public boolean isUserSetupAllowed() {
         return false;
     }
-
-
 
     @Override
     public List<ProviderConfigProperty> getConfigProperties() {
@@ -118,17 +112,19 @@ public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, F
         String phoneNumber = formData.getFirst(RegistrationPhoneNumber.FIELD_PHONE_NUMBER);
         context.getEvent().detail(Details.USERNAME, phoneNumber);
 
-        if (Validation.isBlank(phoneNumber)){
-            errors.add(new FormMessage(RegistrationPhoneNumber.FIELD_PHONE_NUMBER, RegistrationPhoneNumber.MISSING_PHONE_NUMBER));
+        if (Validation.isBlank(phoneNumber)) {
+            errors.add(new FormMessage(RegistrationPhoneNumber.FIELD_PHONE_NUMBER,
+                    RegistrationPhoneNumber.MISSING_PHONE_NUMBER));
             context.error(Errors.INVALID_REGISTRATION);
             context.validationError(formData, errors);
             return;
         }
 
-        if (!UserUtils.isDuplicatePhoneAllowed() && UserUtils.findUserByPhone(context.getSession().users(),context.getRealm(),phoneNumber) != null) {
+        if (UserUtils.findUserByPhone(context.getSession().users(), context.getRealm(), phoneNumber) != null) {
             context.error(Errors.INVALID_REGISTRATION);
             formData.remove(RegistrationPhoneNumber.FIELD_PHONE_NUMBER);
-            errors.add(new FormMessage(RegistrationPhoneNumber.FIELD_PHONE_NUMBER, RegistrationPhoneNumber.PHONE_EXISTS));
+            errors.add(
+                    new FormMessage(RegistrationPhoneNumber.FIELD_PHONE_NUMBER, RegistrationPhoneNumber.PHONE_EXISTS));
             context.validationError(formData, errors);
             return;
         }
@@ -149,15 +145,33 @@ public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, F
 
         MultivaluedMap<String, String> formData = context.getHttpRequest().getDecodedFormParameters();
 
-        String username = formData.getFirst(RegistrationPhoneNumber.FIELD_PHONE_NUMBER);
+        String phoneNumber = formData.getFirst(RegistrationPhoneNumber.FIELD_PHONE_NUMBER);
+
+        String username = context.getRealm().isRegistrationEmailAsUsername()
+                ? formData.getFirst(UserModel.EMAIL)
+                : phoneNumber;
+
+        if (StringUtils.isEmpty(username)) {
+            username = formData.getFirst(UserModel.USERNAME);
+        }
+
+        if (StringUtils.isNotEmpty(phoneNumber)) {
+            String userAttributesFormat = "user.attributes.%s";
+            formData.add(String.format(userAttributesFormat, RegistrationPhoneNumber.FIELD_PHONE_NUMBER), phoneNumber);
+            formData.add(String.format(userAttributesFormat, "phoneNumberVerified"),
+                    "false");
+        }
 
         context.getEvent().detail(Details.USERNAME, username)
                 .detail(Details.REGISTER_METHOD, "form");
-        UserModel user = context.getSession().users().addUser(context.getRealm(), username);
+
+        UserProfileProvider profileProvider = context.getSession().getProvider(UserProfileProvider.class);
+        UserProfile profile = profileProvider.create(UserProfileContext.REGISTRATION_USER_CREATION, formData);
+        UserModel user = profile.create();
+
         user.setEnabled(true);
 
         context.getAuthenticationSession().setClientNote(OIDCLoginProtocol.LOGIN_HINT_PARAM, username);
-        AttributeFormDataProcessor.process(formData);
         context.setUser(user);
         context.getEvent().user(user);
         context.getEvent().success();
@@ -169,8 +183,6 @@ public class RegistrationPhoneAsUserNameCreation implements FormActionFactory, F
         if (authType != null) {
             context.getEvent().detail(Details.AUTH_TYPE, authType);
         }
-
-        logger.info(String.format("user: %s is created, user name is %s ",user.getId(), user.getUsername()));
     }
 
     @Override
